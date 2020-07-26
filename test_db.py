@@ -20,7 +20,7 @@ def delete_files(folder: Path):
             delete_files(path)
             path.rmdir()
         else:
-            path.unlink()
+            path.unlink()  # No coverage when folder is empty
 
 
 def get_folder_size(folder: Path) -> int:
@@ -50,26 +50,16 @@ def add_student(table: DBTable, index: int, **kwargs) -> None:
 
 @pytest.fixture(scope='function')
 def new_db() -> Generator[DataBase, None, None]:
-    delete_files(DB_ROOT)
     db = DataBase()
     for table in db.get_tables_names():
         db.delete_table(table)
+    delete_files(DB_ROOT)
     yield db
 
 
 @pytest.fixture(scope='session')
 def backup_db() -> Generator[Path, None, None]:
     yield DB_BACKUP_ROOT
-
-
-def create_db_backup() -> Path:
-    DB_BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
-    delete_files(DB_BACKUP_ROOT)
-    db = DataBase()
-    create_students_table(db, 100)
-    for path in DB_ROOT.iterdir():
-        path.rename(DB_BACKUP_ROOT / path.name)
-    return DB_BACKUP_ROOT
 
 
 def test_reload_from_backup(backup_db: Path) -> None:
