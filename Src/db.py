@@ -33,7 +33,7 @@ class DBTable(db_api.DBTable):
     def insert_record(self, values: Dict[str, Any]) -> None:
         if values.get(self.key_field_name) == None:
             raise ValueError
-        data_table = shelve.open(f"db_files/{self.name}.db")
+        data_table = shelve.open(f"db_files/{self.name}.db", writeback=True)
         try:
             if data_table.get(str(values[self.key_field_name])):
                 data_table.close()
@@ -51,7 +51,7 @@ class DBTable(db_api.DBTable):
             data_table.close()
 
     def delete_record(self, key: Any) -> None:
-        data_table = shelve.open(f"db_files/{self.name}.db")
+        data_table = shelve.open(f"db_files/{self.name}.db", writeback=True)
         try:
             if data_table.get(str(key)) != None:
                 del data_table[str(key)]
@@ -61,7 +61,7 @@ class DBTable(db_api.DBTable):
             data_table.close()
 
     def delete_records(self, criteria: List[SelectionCriteria]) -> None:
-        data_table = shelve.open(f"db_files/{self.name}.db")
+        data_table = shelve.open(f"db_files/{self.name}.db", writeback=True)
         # for criter in criteria:
         #     if data_table[list(data_table.keys())[0]].get(criter.field_name) == None:
         #         raise ValueError
@@ -83,17 +83,35 @@ class DBTable(db_api.DBTable):
         data_table.close()
 
     def get_record(self, key: Any) -> Dict[str, Any]:
-        data_table = shelve.open(f"db_files/{self.name}.db")
+        data_table = shelve.open(f"db_files/{self.name}.db", writeback=True)
         if data_table.get(str(key)):
-            return data_table[str(key)]
+            t = data_table[str(key)]
         else:
             raise ValueError
+        data_table.close()
+        return t
 
     def update_record(self, key: Any, values: Dict[str, Any]) -> None:
-        raise NotImplementedError
+        data_table = shelve.open(f"db_files/{self.name}.db", writeback=True)
+        if data_table.get(str(key)) == None:
+            raise ValueError
+        if values.get(self.key_field_name):
+            raise ValueError
+            # temp_dict = data_table[str(key)]
+            # del data_table[str(key)]
+            # data_table[values[self.key_field_name]] = temp_dict
+            # key = values[self.key_field_name]
+        # if data_table.get(str(key)) == None:
+        #     raise ValueError
+        for key_value in values.keys():
+            if data_table[str(key)].get(key_value) == None:
+                raise ValueError
+        data_table[str(key)].update(values)
+        data_table.close()
 
     def query_table(self, criteria: List[SelectionCriteria]) \
             -> List[Dict[str, Any]]:
+        
         raise NotImplementedError
 
     def create_index(self, field_to_index: str) -> None:
