@@ -1,45 +1,93 @@
 from dataclasses import dataclass
 from pathlib import Path
+import os
 import shelve
 from typing import Any, Dict, List, Type
+
+import db_api
 from db_api import DataBase, DBField, DBTable
 
 
-
-
-class DBField:
+class DBField(db_api.DBField):
     name: str
     type: Type
 
 
-class SelectionCriteria:
+class SelectionCriteria(db_api.SelectionCriteria):
     field_name: str
     operator: str
     value: Any
 
 
-class MyDBTable:
+class DBTable(db_api.DBTable):
     name: str
     fields: List[DBField]
     key_field_name: str
 
     def count(self) -> int:
-        raise NotImplementedError
+        data_table = shelve.open(f"db_files/{self.name}.db")
+        count = len(data_table.keys())
+        data_table.close()
+        return count
 
     def insert_record(self, values: Dict[str, Any]) -> None:
-        data_table = shelve.open(self.name)
-        data_table[values[self.key_field_name]] = values
-
-
+        if values.get(self.key_field_name) == None:
+            raise ValueError
+        data_table = shelve.open(f"db_files/{self.name}.db")
+        try:
+            if data_table.get(str(values[self.key_field_name])):
+                data_table.close()
+                raise ValueError
+            if len(values.keys()) > len(self.fields):
+                data_table.close()
+                raise ValueError
+            data_table[str(values[self.key_field_name])] = {}
+            for field in self.fields:
+                if values.get(field.name):
+                    data_table[str(values[self.key_field_name])][field.name] = values[field.name]
+                else:
+                    data_table[str(values[self.key_field_name])][field.name] = None
+        finally:
+            data_table.close()
 
     def delete_record(self, key: Any) -> None:
-        raise NotImplementedError
+        data_table = shelve.open(f"db_files/{self.name}.db")
+        try:
+            if data_table.get(str(key)) != None:
+                del data_table[str(key)]
+            else:
+                raise ValueError
+        finally:
+            data_table.close()
 
     def delete_records(self, criteria: List[SelectionCriteria]) -> None:
-        raise NotImplementedError
+        data_table = shelve.open(f"db_files/{self.name}.db")
+        # for criter in criteria:
+        #     if data_table[list(data_table.keys())[0]].get(criter.field_name) == None:
+        #         raise ValueError
+        # for criter in criteria:
+        #     if data_table[list(data_table.keys())[0]].get(criter.field_name):
+        #         for record in data_table.keys():
+        #             if not eval(data_table[record][criter.field_name] + criter.operator + str(criter.value)):
+        #                 self.delete_record(record)
+        for record in data_table.keys():
+            flag = 0
+            for criter in criteria:
+                if data_table[list(data_table.keys())[0]].get(criter.field_name):
+                    if criter.operator == '=':
+                        criter.operator = '=='
+                    if not eval(data_table[record][criter.field_name] + criter.operator + str(criter.value)):
+                        flag = 1
+            if flag == 0:
+                self.delete_record(record)
+        data_table.close()
 
     def get_record(self, key: Any) -> Dict[str, Any]:
-        raise NotImplementedError
+        data_table = shelve.open(f"db_files/{self.name}.db")
+        if data_table.get(str(key)):
+            return data_table[str(key)]
+        else:
+            raise ValueError
 
     def update_record(self, key: Any, values: Dict[str, Any]) -> None:
         raise NotImplementedError
@@ -52,7 +100,7 @@ class MyDBTable:
         raise NotImplementedError
 
 
-class MyDataBase(DataBase):
+class DataBase(db_api.DataBase):
 
     dict_table = {}
 
@@ -60,7 +108,7 @@ class MyDataBase(DataBase):
                      table_name: str,
                      fields: List[DBField],
                      key_field_name: str) -> DBTable:
-        data_table = shelve.open(f"{table_name}.db", writeback=True)
+        data_table = shelve.open(f"db_files/{table_name}.db", writeback=True)
         data_table.close()
         dbtable = DBTable(table_name, fields, key_field_name)
         self.dict_table[table_name] = dbtable
@@ -70,21 +118,16 @@ class MyDataBase(DataBase):
         return len(self.dict_table.keys())
 
     def get_table(self, table_name: str) -> DBTable:
-         return self.dict_table.get(table_name)
+        if self.dict_table.get(table_name) is None:
+            raise ValueError
+        return self.dict_table.get(table_name)
 
     def get_tables_names(self) -> List[Any]:
-        return List[self.dict_table.keys()]
+        return list(self.dict_table.keys())
 
     def delete_table(self, table_name: str) -> None:
-        raise NotImplementedError
-
-
-
-
-
-
-
-
-
-
+        os.remove(os.path.join('db_files', table_name + ".db.bak"))
+        os.remove(os.path.join('db_files', table_name + ".db.dat"))
+        os.remove(os.path.join('db_files', table_name + ".db.dir"))
+        self.dict_table.pop(table_name)
 
