@@ -27,11 +27,16 @@ class DBTable(db_api.DBTable):
     name: str
     fields: List[DBField]
     key_field_name: str
+    index_list = []
 
-    def __init__(self,table_name, fields, key_field_name):
-        self.name=table_name
-        self.fields=fields
-        self.key_field_name=key_field_name
+    def __init__(self, table_name, fields, key_field_name):
+        self.name = table_name
+        self.fields = fields
+        self.key_field_name = key_field_name
+        self.index_list = []
+
+    def is_index(self,field):
+        return field in self.index_list
 
     def count(self) -> int:
         data_table = shelve.open(f"db_files/{self.name}.db")
@@ -52,6 +57,16 @@ class DBTable(db_api.DBTable):
                 raise ValueError
             data_table[str(values[self.key_field_name])] = {}
             for field in self.fields:
+                if self.is_index(field.name):
+                    if values.get(field.name) == None:
+                        raise ValueError
+            for field in self.fields:
+                if self.is_index(field.name):
+                    db_index = shelve.open(f'db_files/{self.name}{field.name}.db', writeback=True)
+                    try:
+                        db_index[values[field.name]].append(values[self.key_field_name])
+                    except:
+                        db_index[values[field.name]] = list()
                 if values.get(field.name):
                     data_table[str(values[self.key_field_name])][field.name] = values[field.name]
                 else:
@@ -60,7 +75,7 @@ class DBTable(db_api.DBTable):
             data_table.close()
 
     def delete_record(self, key: Any) -> None:
-        data_table = shelve.open(f"db_files/{self.name}.db",writeback=True)
+        data_table = shelve.open(f"db_files/{self.name}.db", writeback=True)
         try:
             if None == data_table.get(str(key)):
                 data_table.close()
@@ -88,7 +103,7 @@ class DBTable(db_api.DBTable):
         data_table.close()
 
     def get_record(self, key: Any) -> Dict[str, Any]:
-        data_table = shelve.open(f"db_files/{self.name}.db",writeback=True)
+        data_table = shelve.open(f"db_files/{self.name}.db", writeback=True)
         if data_table.get(str(key)):
             d = data_table[str(key)]
             data_table.close()
@@ -114,7 +129,6 @@ class DBTable(db_api.DBTable):
         data_table = shelve.open(f"db_files/{self.name}.db")
 
         Selection_criteria_list = []
-
         for criter in criteria:
             if data_table[list(data_table.keys())[0]].get(criter.field_name)==None:
                 raise ValueError
@@ -136,7 +150,27 @@ class DBTable(db_api.DBTable):
         return Selection_criteria_list
 
     def create_index(self, field_to_index: str) -> None:
-        raise NotImplementedError
+        if field_to_index == self.key_field_name:
+            return
+        flag = 0
+        for field in self.fields:
+            if field_to_index == field.name:
+                flag = 1
+        if flag == 0:
+            raise ValueError
+        db_index = shelve.open(f'db_files/{self.name}{field_to_index}.db', writeback=True)
+        data_table = shelve.open(f"db_files/{self.name}.db")
+        for record in data_table.keys():
+            try:
+                db_index[data_table[record][field_to_index]].append(record)
+            except:
+                db_index[data_table[record][field_to_index]] = list()
+        self.index_list.append(field_to_index)
+        db = shelve.open("db_files/DB.db", writeback=True)
+        db[self.name][2].append(field_to_index)
+        data_table.close()
+        db_index.close()
+
 
 
 class DataBase(db_api.DataBase):
@@ -146,7 +180,9 @@ class DataBase(db_api.DataBase):
     def __init__(self):
         with shelve.open(os.path.join(db_api.DB_ROOT, "DB.db"), writeback=True) as db:
             for key in db:
-                DataBase.__dict_tables__[str(key)] = DBTable(key, db[key][0], db[key][1])
+                db_table = DBTable(key, db[key][0], db[key][1])
+                DataBase.__dict_tables__[str(key)] = db_table
+                db_table.index_list = db[key][2]
 
     def create_table(self,
                      table_name: str,
@@ -163,9 +199,10 @@ class DataBase(db_api.DataBase):
         data_table = shelve.open(os.path.join(db_api.DB_ROOT, table_name + ".db"), writeback=True)
         data_table.close()
         db_table = DBTable(table_name, fields, key_field_name)
+        data_table.index_list = []
         DataBase.__dict_tables__[table_name] = db_table
         with shelve.open(os.path.join(db_api.DB_ROOT, "DB.db"), writeback=True) as db:
-            db[table_name] = [fields, key_field_name]
+            db[table_name] = [fields, key_field_name, []]
         return db_table
 
     def num_tables(self) -> int:
@@ -194,6 +231,3 @@ class DataBase(db_api.DataBase):
             fields_to_join_by: List[str]
     ) -> List[Dict[str, Any]]:
         raise NotImplementedError
-
-
-
