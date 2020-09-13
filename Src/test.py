@@ -25,32 +25,6 @@ def add_student(table: DBTable, index: int, **kwargs) -> None:
     table.insert_record(info)
 
 
-# def test_create_index():
-#     Students_index = create_students_table(db)
-#     assert db.num_tables() == 1
-#     assert db.get_tables_names() == ['Students_index']
-#     students = db.get_table('Students_index')
-#     add_student(students, 111, Birthday="ry")
-#     add_student(students, 123, Birthday="ry")
-#     add_student(students, 145, Birthday="h")
-#     add_student(students, 1435, Birthday="tr")
-#     assert students.count() == 4
-#     students.delete_record(1_000_111)
-#     assert students.count() == 3
-#     with pytest.raises(ValueError):
-#         students.delete_record(key=1_000_111)
-#     Students_index.create_index('Birthday')
-#     add_student(students, 145635, Birthday="tr")
-#     add_student(students, 129, Birthday="tr")
-#     results = students.query_table([SelectionCriteria('Birthday', '=', 'tr')])
-#     print(results)
-#     students.delete_records([SelectionCriteria('ID', '=', 1000145)])
-#     students.delete_record(key=1145635)
-#     with pytest.raises(ValueError):
-#         students.update_record(key=1000145, values={"Birthday": "test"})
-#     students.update_record(key=1000123, values={"Birthday": "test"})
-#     students.delete_records([SelectionCriteria('Birthday', '=', 'tr')])
-
 def test_create_index():
     Students_index = create_students_table(db)
     assert db.num_tables() == 1
